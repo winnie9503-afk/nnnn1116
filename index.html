@@ -1,0 +1,974 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>RawStream｜共用照片與影片</title>
+
+<style>
+:root {
+  --bg:#0f172a;
+  --panel:#1e293b;
+  --border:#334155;
+  --text:#f8fafc;
+  --muted:#94a3b8;
+  --blue:#0284c7;
+  --green:#059669;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui,"Noto Sans TC",sans-serif;
+}
+header {
+  background:#111c30;
+  border-bottom:1px solid var(--border);
+  padding:18px;
+}
+header .inner {
+  max-width:1100px;
+  margin:auto;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+}
+.brand { font-size:22px;font-weight:800; }
+.status { font-size:12px;color:#fbbf24; }
+main { max-width:1100px;margin:auto;padding:24px 16px; }
+h1 { font-size:clamp(24px,4vw,34px);text-align:center; }
+h2 { font-size:21px;margin:0 0 14px; }
+.subtitle {
+  text-align:center;
+  color:var(--muted);
+  line-height:1.7;
+}
+section {
+  padding:22px;
+  border:1px solid var(--border);
+  border-radius:18px;
+  background:var(--panel);
+  margin:24px 0;
+}
+.drop {
+  padding:35px 15px;
+  border:2px dashed #64748b;
+  border-radius:15px;
+  text-align:center;
+  background:#101b30;
+}
+.drop.drag { border-color:#38bdf8;background:#123249; }
+.buttons { display:flex;gap:10px;flex-wrap:wrap; }
+.center { justify-content:center;margin-top:18px; }
+button {
+  padding:12px 16px;
+  min-height:44px;
+  border:0;
+  border-radius:11px;
+  background:#475569;
+  color:white;
+  font-weight:700;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+button.primary { background:var(--blue); }
+button.green { background:var(--green); }
+button:disabled { opacity:.45;cursor:not-allowed; }
+.toolbar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:16px;
+}
+.grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:15px;
+}
+.card {
+  background:#101b30;
+  border:1px solid var(--border);
+  border-radius:14px;
+  overflow:hidden;
+  min-width:0;
+}
+.media {
+  display:block;
+  width:100%;
+  aspect-ratio:16/10;
+  background:#020617;
+  object-fit:contain;
+}
+.card-body { padding:13px; }
+.name { font-weight:700;overflow-wrap:anywhere; }
+.meta { font-size:12px;color:var(--muted);margin:7px 0; }
+.card-actions { display:flex;gap:8px;flex-wrap:wrap;margin-top:12px; }
+.card-actions button { flex:1;font-size:12px; }
+.progress {
+  height:9px;
+  border-radius:20px;
+  background:#334155;
+  overflow:hidden;
+  margin-top:10px;
+}
+.bar { height:100%;width:0;background:#38bdf8; }
+.success { color:#34d399; }
+.error { color:#fda4af;overflow-wrap:anywhere; }
+input[type=search] {
+  min-height:45px;
+  padding:10px;
+  border:1px solid #475569;
+  border-radius:10px;
+  background:#0f172a;
+  color:white;
+  width:min(300px,100%);
+}
+.empty { padding:28px;text-align:center;color:var(--muted); }
+.hidden { display:none!important; }
+#notice {
+  position:fixed;
+  bottom:18px;
+  left:50%;
+  transform:translateX(-50%);
+  width:min(550px,calc(100% - 28px));
+  z-index:100;
+  background:#334155;
+  padding:14px;
+  border-radius:12px;
+  display:none;
+  box-shadow:0 5px 25px #0009;
+  overflow-wrap:anywhere;
+}
+footer {
+  text-align:center;
+  color:var(--muted);
+  padding:20px;
+  font-size:12px;
+}
+@media(max-width:850px) {
+  .grid { grid-template-columns:repeat(2,1fr); }
+}
+@media(max-width:580px) {
+  .grid { grid-template-columns:1fr; }
+  section { padding:14px; }
+  .buttons.center { flex-direction:column; }
+  .buttons.center button { width:100%; }
+  .brand { font-size:17px; }
+  .toolbar { align-items:stretch; }
+  input[type=search] { width:100%; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="inner">
+    <div class="brand">☁ RawStream</div>
+    <div id="firebaseStatus" class="status">Firebase 連線中...</div>
+  </div>
+</header>
+
+<main>
+<h1>共用照片與影片平台</h1>
+<p class="subtitle">
+  手機可以直接選擇相簿照片、影片。<br>
+  上傳成功後永久保留於雲端，除非檔案被刪除、
+  服務限制或帳號政策造成移除。所有訪客都可查看。
+</p>
+
+<section>
+  <h2>📤 上傳照片與影片</h2>
+
+  <div id="dropZone" class="drop">
+    <div style="font-size:42px">📷 🎬</div>
+    <h3>選擇要上傳的檔案</h3>
+    <p style="color:#94a3b8">
+      支援多選，電腦也可以直接拖曳。
+    </p>
+
+    <div class="buttons center">
+      <button id="photoBtn" class="primary">選擇照片</button>
+      <button id="videoBtn">選擇影片</button>
+      <button id="bothBtn">照片與影片</button>
+    </div>
+  </div>
+
+  <input id="photoInput" type="file"
+    accept="image/*,.heic,.heif" multiple hidden>
+
+  <input id="videoInput" type="file"
+    accept="video/*,.mov,.mkv,.avi" multiple hidden>
+
+  <input id="bothInput" type="file"
+    accept="image/*,video/*,.heic,.heif,.mov,.mkv,.avi"
+    multiple hidden>
+
+  <div id="queueArea" class="hidden" style="margin-top:25px">
+    <div class="toolbar">
+      <h2>待上傳清單 <span id="queueCount"></span></h2>
+      <div class="buttons">
+        <button id="clearBtn">清空</button>
+        <button id="uploadBtn" class="primary">全部上傳</button>
+      </div>
+    </div>
+
+    <div id="queueGrid" class="grid"></div>
+  </div>
+</section>
+
+<section>
+  <div class="toolbar">
+    <div>
+      <h2>🖼️ 共用影音庫</h2>
+      <div id="galleryCount" class="meta">讀取中...</div>
+    </div>
+    <input id="search" type="search" placeholder="搜尋檔案名稱">
+  </div>
+
+  <div id="galleryGrid" class="grid"></div>
+  <div id="empty" class="empty">
+    正在從 Firebase 讀取資料...
+  </div>
+</section>
+</main>
+
+<footer>
+ RawStream · Cloudinary 雲端儲存 · Firebase 即時同步
+</footer>
+
+<div id="notice" role="status" aria-live="polite"></div>
+
+<script type="module">
+import {
+  initializeApp
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+
+import {
+  getAuth,
+  signInAnonymously
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  onSnapshot
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+// ================================================
+// 1. 網站設定
+// ================================================
+
+const SITE_CONFIG = {
+  cloudinaryCloudName: "x5ia24uo",
+  cloudinaryUploadPreset: "nnn_1115",
+
+  firebaseConfig: {
+    apiKey: "AIzaSyAkZn-yy77eYBbdSu3xUe-5B_HC37ozziI",
+    authDomain: "badd-3b3e9.firebaseapp.com",
+    projectId: "badd-3b3e9",
+    storageBucket: "badd-3b3e9.firebasestorage.app",
+    messagingSenderId: "754540713861",
+    appId: "1:754540713861:web:824fff7f5e97e7d8d216ec",
+    measurementId: "G-S5MC6Z6T0C"
+  }
+};
+
+// 保留舊版 Firestore 共用路徑
+const GALLERY_ID = "rawstream-shared-gallery";
+
+const $ = id => document.getElementById(id);
+
+let dbCollection = null;
+let currentUser = null;
+let isUploading = false;
+let galleryReady = false;
+
+const queue = [];
+let allMedia = [];
+
+// ================================================
+// 2. 通用函式
+// ================================================
+
+function notify(message, error = false) {
+  const el = $("notice");
+  el.textContent = message;
+  el.style.background = error ? "#7f1d1d" : "#334155";
+  el.style.display = "block";
+
+  clearTimeout(notify.timer);
+  notify.timer = setTimeout(() => {
+    el.style.display = "none";
+  }, 6500);
+}
+
+function formatSize(size) {
+  if (size < 1024) return size + " B";
+  if (size < 1048576) return (size / 1024).toFixed(1) + " KB";
+  if (size < 1073741824) return (size / 1048576).toFixed(1) + " MB";
+  return (size / 1073741824).toFixed(2) + " GB";
+}
+
+function fileType(file) {
+  if (
+    file.type.startsWith("image/") ||
+    /\.(png|jpe?g|webp|gif|bmp|heic|heif|avif)$/i.test(file.name)
+  ) return "image";
+
+  if (
+    file.type.startsWith("video/") ||
+    /\.(mp4|mov|mkv|avi|webm|m4v|wmv)$/i.test(file.name)
+  ) return "video";
+
+  return null;
+}
+
+function createElement(tag, cls, value) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (value !== undefined) el.textContent = value;
+  return el;
+}
+
+function createButton(text, cls, fn) {
+  const btn = createElement("button", cls, text);
+  btn.type = "button";
+  btn.onclick = fn;
+  return btn;
+}
+
+function validUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" &&
+      u.hostname === "res.cloudinary.com";
+  } catch {
+    return false;
+  }
+}
+
+function mediaElement(src, type, name) {
+  const el = document.createElement(
+    type === "image" ? "img" : "video"
+  );
+
+  el.className = "media";
+  el.src = src;
+
+  if (type === "image") {
+    el.alt = name;
+    el.loading = "lazy";
+  } else {
+    el.controls = true;
+    el.playsInline = true;
+    el.preload = "metadata";
+  }
+
+  return el;
+}
+
+// ================================================
+// 3. Firebase 初始化
+// ================================================
+
+async function initializeFirebase() {
+  try {
+    const app = initializeApp(SITE_CONFIG.firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const result = await signInAnonymously(auth);
+    currentUser = result.user;
+
+    dbCollection = collection(
+      db,
+      "artifacts",
+      GALLERY_ID,
+      "public",
+      "data",
+      "shared_videos"
+    );
+
+    $("firebaseStatus").textContent = "正在同步共用影音庫";
+
+    onSnapshot(
+      dbCollection,
+
+      snapshot => {
+        galleryReady = true;
+
+        allMedia = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        allMedia.sort((a, b) =>
+          (b.createdAtMs || 0) - (a.createdAtMs || 0)
+        );
+
+        $("firebaseStatus").textContent = "● 雲端已連線";
+        $("firebaseStatus").className = "status success";
+
+        renderGallery();
+        renderQueue();
+      },
+
+      error => {
+        galleryReady = false;
+
+        $("firebaseStatus").textContent = "資料庫讀取失敗";
+        $("firebaseStatus").className = "status error";
+
+        $("empty").textContent =
+          "Firestore 讀取失敗：" + error.message;
+
+        notify(
+          "Firebase 讀取錯誤：" + error.message,
+          true
+        );
+      }
+    );
+
+  } catch (error) {
+    console.error("Firebase Error:", error);
+
+    $("firebaseStatus").textContent = "Firebase 連線失敗";
+    $("firebaseStatus").className = "status error";
+
+    $("empty").textContent =
+      "Firebase 初始化失敗：" +
+      (error.code || error.message);
+
+    notify(
+      "Firebase 錯誤：" +
+      (error.code || error.message),
+      true
+    );
+  }
+}
+
+// ================================================
+// 4. 加入多個檔案
+// ================================================
+
+function addFiles(files) {
+  if (isUploading) return;
+
+  let added = 0;
+
+  for (const file of Array.from(files)) {
+    const type = fileType(file);
+
+    if (!type) {
+      notify("不支援：" + file.name, true);
+      continue;
+    }
+
+    const exists = queue.some(q =>
+      q.file.name === file.name &&
+      q.file.size === file.size &&
+      q.file.lastModified === file.lastModified
+    );
+
+    if (exists) continue;
+
+    queue.push({
+      id: crypto.randomUUID(),
+      file,
+      type,
+      previewUrl: URL.createObjectURL(file),
+      status: "waiting",
+      progress: 0,
+      error: "",
+      cloudinaryResult: null,
+      saved: false
+    });
+
+    added++;
+  }
+
+  renderQueue();
+
+  if (added) notify("已加入 " + added + " 個檔案");
+}
+
+// ================================================
+// 5. 上傳佇列畫面
+// ================================================
+
+function statusText(q) {
+  switch (q.status) {
+    case "waiting": return "等待上傳";
+    case "uploading": return "上傳中 " + q.progress + "%";
+    case "saving": return "雲端成功，正在寫入 Firebase";
+    case "done": return "已永久發布至共用庫";
+    case "failed": return "上傳失敗：" + q.error;
+    case "dbFailed": return "Firebase 寫入失敗：" + q.error;
+    default: return "等待中";
+  }
+}
+
+function renderQueue() {
+  const container = $("queueGrid");
+  container.replaceChildren();
+
+  $("queueArea").classList.toggle("hidden", queue.length === 0);
+  $("queueCount").textContent = "(" + queue.length + ")";
+
+  for (const q of queue) {
+    const card = createElement("div", "card");
+    card.append(
+      mediaElement(q.previewUrl, q.type, q.file.name)
+    );
+
+    const body = createElement("div", "card-body");
+    body.append(
+      createElement("div", "name", q.file.name),
+      createElement("div", "meta", formatSize(q.file.size))
+    );
+
+    const status = createElement(
+      "div",
+      "meta " +
+      (q.status === "done" ? "success" :
+       q.status === "failed" || q.status === "dbFailed" ?
+       "error" : ""),
+      statusText(q)
+    );
+
+    body.append(status);
+
+    const progress = createElement("div", "progress");
+    const bar = createElement("div", "bar");
+    bar.style.width = q.progress + "%";
+    progress.append(bar);
+    body.append(progress);
+
+    if (
+      !isUploading &&
+      q.status !== "done"
+    ) {
+      body.append(
+        createButton("移除", "", () => {
+          URL.revokeObjectURL(q.previewUrl);
+          const i = queue.indexOf(q);
+          if (i !== -1) queue.splice(i, 1);
+          renderQueue();
+        })
+      );
+    }
+
+    card.append(body);
+    container.append(card);
+  }
+
+  $("uploadBtn").disabled =
+    isUploading ||
+    !galleryReady ||
+    !queue.some(q => q.status !== "done");
+
+  $("clearBtn").disabled = isUploading;
+}
+
+// ================================================
+// 6. Cloudinary 單檔上傳
+// ================================================
+
+function uploadToCloudinary(q) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+
+    form.append("file", q.file, q.file.name);
+    form.append(
+      "upload_preset",
+      SITE_CONFIG.cloudinaryUploadPreset
+    );
+
+    const xhr = new XMLHttpRequest();
+
+    const endpoint =
+      "https://api.cloudinary.com/v1_1/" +
+      encodeURIComponent(SITE_CONFIG.cloudinaryCloudName) +
+      "/auto/upload";
+
+    xhr.open("POST", endpoint);
+    xhr.timeout = 1800000;
+
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) {
+        q.progress = Math.min(
+          99,
+          Math.round(event.loaded / event.total * 100)
+        );
+
+        updateQueueProgress(q);
+      }
+    };
+
+    xhr.onload = () => {
+      let response = {};
+
+      try {
+        response = JSON.parse(xhr.responseText);
+      } catch {}
+
+      if (
+        xhr.status >= 200 &&
+        xhr.status < 300 &&
+        response.secure_url
+      ) {
+        resolve(response);
+      } else {
+        reject(
+          new Error(
+            response.error?.message ||
+            "HTTP " + xhr.status
+          )
+        );
+      }
+    };
+
+    xhr.onerror = () =>
+      reject(new Error("網路連線失敗"));
+
+    xhr.ontimeout = () =>
+      reject(new Error("上傳逾時"));
+
+    xhr.send(form);
+  });
+}
+
+function updateQueueProgress(q) {
+  const cards = $("queueGrid").children;
+  const index = queue.indexOf(q);
+
+  if (index < 0 || !cards[index]) return;
+
+  const card = cards[index];
+
+  const bar = card.querySelector(".bar");
+  const status = card.querySelector(".card-body .meta");
+
+  if (bar) bar.style.width = q.progress + "%";
+
+  // 狀態文字在卡片內的第二個 meta
+  const metas = card.querySelectorAll(".card-body .meta");
+  if (metas[1]) metas[1].textContent = statusText(q);
+}
+
+// ================================================
+// 7. 將 Cloudinary 成功結果保存至 Firestore
+// ================================================
+
+async function saveToFirebase(q) {
+  if (!dbCollection || !currentUser || !galleryReady) {
+    throw new Error("Firestore 尚未連線");
+  }
+
+  const data = q.cloudinaryResult;
+
+  if (!data || !data.secure_url) {
+    throw new Error("沒有可保存的雲端檔案");
+  }
+
+  await addDoc(dbCollection, {
+    name: q.file.name,
+    url: data.secure_url,
+    type: q.type,
+    resourceType: data.resource_type || q.type,
+    publicId: data.public_id || "",
+    bytes: q.file.size,
+    sizeStr: formatSize(q.file.size),
+    format: data.format || "",
+    uploaderUid: currentUser.uid,
+    createdAtMs: Date.now()
+  });
+}
+
+// ================================================
+// 8. 多檔上傳
+// ================================================
+
+async function uploadAll() {
+  if (isUploading) return;
+
+  if (!galleryReady || !dbCollection || !currentUser) {
+    notify("請先確認 Firebase 與 Firestore 正常連線", true);
+    return;
+  }
+
+  isUploading = true;
+  renderQueue();
+
+  let success = 0;
+  let failed = 0;
+
+  for (const q of queue) {
+    if (q.status === "done") continue;
+
+    try {
+      // 有 Cloudinary 結果時，重試只寫 Firebase
+      // 避免重複上傳造成同一張照片有多份副本
+      if (!q.cloudinaryResult) {
+        q.status = "uploading";
+        q.progress = 0;
+        q.error = "";
+        renderQueue();
+
+        // 超過一般 API 支援大小的檔案先提示
+        if (q.file.size > 100 * 1024 * 1024) {
+          throw new Error(
+            "檔案超過 100 MB，需要大型檔案分塊上傳方案"
+          );
+        }
+
+        q.cloudinaryResult = await uploadToCloudinary(q);
+      }
+
+      q.status = "saving";
+      q.progress = 100;
+      renderQueue();
+
+      try {
+        await saveToFirebase(q);
+      } catch (error) {
+        q.status = "dbFailed";
+        q.error = error.code || error.message;
+        failed++;
+        renderQueue();
+        continue;
+      }
+
+      q.status = "done";
+      q.saved = true;
+      q.progress = 100;
+      success++;
+
+    } catch (error) {
+      q.status = "failed";
+      q.error = error.message;
+      failed++;
+      console.error(q.file.name, error);
+    }
+
+    renderQueue();
+  }
+
+  isUploading = false;
+  renderQueue();
+
+  if (failed === 0) {
+    notify("成功發布 " + success + " 個檔案！");
+  } else {
+    notify(
+      "成功 " + success + " 個，失敗 " + failed +
+      " 個。可按「全部上傳」重試失敗項目。",
+      true
+    );
+  }
+}
+
+// ================================================
+// 9. 手機儲存原始檔案
+// ================================================
+
+async function saveFile(rec) {
+  if (!validUrl(rec.url)) {
+    notify("無效的檔案網址", true);
+    return;
+  }
+
+  // 避免大型影片被完整載入手機記憶體
+  const shareLimit = 50 * 1024 * 1024;
+
+  if (
+    navigator.share &&
+    navigator.canShare &&
+    rec.bytes > 0 &&
+    rec.bytes <= shareLimit
+  ) {
+    try {
+      const response = await fetch(rec.url);
+
+      if (response.ok) {
+        const blob = await response.blob();
+
+        const file = new File(
+          [blob],
+          rec.name || "download",
+          { type: blob.type || "application/octet-stream" }
+        );
+
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: rec.name
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      console.info("原生分享不可用", error);
+    }
+  }
+
+  // 無法原生分享時，開啟原始檔案
+  window.open(rec.url, "_blank", "noopener");
+
+  notify(
+    "已嘗試開啟原始檔案。iPhone 可使用分享選單儲存至照片或檔案。",
+    false
+  );
+}
+
+// ================================================
+// 10. 共用影音庫
+// ================================================
+
+function renderGallery() {
+  const grid = $("galleryGrid");
+  grid.replaceChildren();
+
+  const keyword = $("search").value.trim().toLowerCase();
+
+  const filtered = allMedia.filter(rec =>
+    (rec.name || "").toLowerCase().includes(keyword)
+  );
+
+  $("galleryCount").textContent =
+    filtered.length + " 個檔案";
+
+  $("empty").classList.toggle(
+    "hidden",
+    filtered.length !== 0
+  );
+
+  if (!filtered.length) {
+    $("empty").textContent =
+      "目前沒有照片或影片";
+    return;
+  }
+
+  for (const rec of filtered) {
+    if (!validUrl(rec.url)) continue;
+
+    const type =
+      rec.type === "image" ||
+      rec.resourceType === "image" ||
+      /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(rec.name || "")
+      ? "image" : "video";
+
+    const card = createElement("div", "card");
+
+    card.append(
+      mediaElement(
+        rec.url,
+        type,
+        rec.name || "媒體檔案"
+      )
+    );
+
+    const body = createElement("div", "card-body");
+
+    body.append(
+      createElement("div", "name", rec.name || "未命名"),
+      createElement(
+        "div",
+        "meta",
+        (type === "image" ? "照片" : "影片") +
+        " · " +
+        (rec.sizeStr || formatSize(rec.bytes || 0))
+      )
+    );
+
+    const actions = createElement("div", "card-actions");
+
+    actions.append(
+      createButton("儲存至手機", "green", () => saveFile(rec)),
+      createButton("複製連結", "", async () => {
+        try {
+          await navigator.clipboard.writeText(rec.url);
+          notify("分享連結已複製");
+        } catch {
+          notify("請使用瀏覽器的分享功能複製網址", true);
+        }
+      })
+    );
+
+    body.append(actions);
+    card.append(body);
+    grid.append(card);
+  }
+}
+
+// ================================================
+// 11. 使用者介面事件
+// ================================================
+
+$("photoBtn").onclick = () => $("photoInput").click();
+$("videoBtn").onclick = () => $("videoInput").click();
+$("bothBtn").onclick = () => $("bothInput").click();
+
+for (const id of ["photoInput", "videoInput", "bothInput"]) {
+  $(id).onchange = event => {
+    addFiles(event.target.files);
+    event.target.value = "";
+  };
+}
+
+$("uploadBtn").onclick = uploadAll;
+
+$("clearBtn").onclick = () => {
+  if (isUploading) return;
+
+  // 已經發布的照片仍保存在雲端
+  // 這裡只清除本機待上傳清單
+  for (const q of queue) {
+    URL.revokeObjectURL(q.previewUrl);
+  }
+
+  queue.length = 0;
+  renderQueue();
+
+  notify("已清空本機清單，共用影音庫資料不受影響");
+};
+
+$("search").oninput = renderGallery;
+
+// 電腦拖曳功能
+for (const name of ["dragenter", "dragover"]) {
+  $("dropZone").addEventListener(name, event => {
+    event.preventDefault();
+    $("dropZone").classList.add("drag");
+  });
+}
+
+for (const name of ["dragleave", "drop"]) {
+  $("dropZone").addEventListener(name, event => {
+    event.preventDefault();
+    $("dropZone").classList.remove("drag");
+  });
+}
+
+$("dropZone").addEventListener("drop", event => {
+  addFiles(event.dataTransfer.files);
+});
+
+// ================================================
+// 12. 啟動
+// ================================================
+
+initializeFirebase();
+
+</script>
+</body>
+</html>
